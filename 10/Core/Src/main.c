@@ -39,9 +39,22 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-char RxDataBuffer[1] =
+char RxDataBuffer[32] =
 { 0 };
+char TxDataBuffer[32] =
+{ 0 };
+enum _state
+{
+	State_start = 0,
+	State_mainmenu,
+	State_sawtooth,
+	State_mainsawtooth,
+	State_sin,
+	State_mainsin,
+	State_Square,
+	State_mainSquare,
 
+};
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -62,8 +75,31 @@ uint64_t _micro = 0;
 uint16_t dataOut = 0;
 //upper 4 bits of dac
 uint8_t DACConfig = 0b0011;
-
+uint16_t ADCV = 0 ;
 int show = 0 ;
+int StateDisplay = 0 ;
+int Check = 0 ;
+
+float f = 1.0 ;
+int16_t inputchar =0 ;
+
+float T = 0 ;
+
+uint64_t  time_wave = 0 ;
+double edit_time = 0 ;
+float V_high = 3.3 ;
+float V_low = 0 ;
+float sumdata = 0 ;
+int Duty = 50 ;
+float sumtimewave = 0 ;
+float Amplitude = 0 ;
+int S_sawtooth = 0 ;
+int menu = 0 ;
+int count = 0 ;
+uint64_t T1 = 0 ;
+uint64_t T2 = 0 ;
+uint16_t out = 0 ;
+int d= 0 ;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,6 +114,8 @@ static void MX_TIM11_Init(void);
 /* USER CODE BEGIN PFP */
 void MCP4922SetOutput(uint8_t Config, uint16_t DACOutput);
 uint64_t micros();
+int16_t UARTRecieveIT() ;
+int16_t UARTRecieveIT() ;
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -123,57 +161,619 @@ int main(void)
 	HAL_TIM_Base_Start(&htim3);
 	HAL_TIM_Base_Start_IT(&htim11);
 	HAL_ADC_Start_DMA(&hadc1, (uint32_t*) &ADCin, 1);
-	show = 0 ;
+
 	HAL_GPIO_WritePin(LOAD_GPIO_Port, LOAD_Pin, GPIO_PIN_RESET);
-  /* USER CODE END 2 */
+	//new----
+
+    //-------
+
+//	float offset = 0 ;
+//	float duty = 0 ;
+//
+
+uint64_t time = 0 ;
+//	uint64_t time2 = 0 ;
+//	int count = 0 ;
+//
+//	int Vmax_sawtooth = 4000 ;
+//	int Vmin_sawtooth = 0 ;
+//
+//	int Vmax_sin = 4000 ;
+//	int Vmin_sin = 0 ;
+//	int Vmax_square = 3000 ;
+//	int Vmin_square = 1000 ;
+
+
+//	int menu = 0 ;
+//	uint64_t Freq_saw =  0 ;
+//	uint64_t  F_Sin = 500000 ;
+//	int F_hz_saw = 5000 ;
+//	int F_hz_square = 50000 ;
+
+/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  //ui
-
-	  HAL_UART_Receive_IT(&huart2,  (uint8_t*)RxDataBuffer, 1);
-	 // show = 0 ;
-	 // HAL_Delay(100);
-	  if( RxDataBuffer[0]==(int)'c')
-	  {
-		    {
-		    char temp[]="   c   \r\n please type something to test UART\r\n";
-		    HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
-
-		    }
-	  }
-	  if( RxDataBuffer[0]==(int)'s')
-	  {
-		    {
-		    char temp[]="   s   \r\n please type something to test UART\r\n";
-		    HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
-
-		    }
-	  }
-
-
-	  static uint64_t timestamp = 0;
-	  //	dataOut = 1000*sin(2*3.14*(micros()/0.000001)*10000) ;
-
-		if (micros() - timestamp > 100) //100uz = 10khz
+    //ADCV = ADCin*4096/3.3;
+	static uint64_t timestamp = 0;
+	HAL_UART_Receive_IT(&huart2,  (uint8_t*)RxDataBuffer, 32);
+	inputchar = UARTRecieveIT();
+	//if(inputchar!=-1)
 		{
-			timestamp = micros();
-//			dataOut++;
-//			dataOut %= 4096;
-//			if(dataOut == 0 ){dataOut = 4096 ;}
-//			dataOut -- ;
-//			dataOut = 5*sin(2*3.14*micros()*10) ;
-//			dataOut = sin((2.00*3.141592653569793236*(10000*0.1)*timestamp)) ;
-//			if(dataOut >= 255){dataOut = 0 ;}
-//			if(dataOut >= 0){dataOut++;}
-			if (hspi3.State == HAL_SPI_STATE_READY
-					&& HAL_GPIO_ReadPin(SPI_SS_GPIO_Port, SPI_SS_Pin)
-							== GPIO_PIN_SET)
+		switch(StateDisplay)
+		{
+
+		case State_start :
+		{
+					char temp[]="----------------------------\r\n"
+								"------------MENU------------\r\n"
+								"please press right\r\n "
+								 "press 1 : Sawtooth\r\n"
+								 "press 2 : Sine wave\r\n "
+								 "press 3 : Square wave\r\n"
+								 "---------------------------\r\n";
+					HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),1000);
+					}
+			StateDisplay = State_mainmenu ;
+			break ;
+
+		case State_mainmenu :
+			menu = 0 ;
+
+			switch(inputchar)
 			{
-				MCP4922SetOutput(DACConfig, dataOut);
+			case 0 :
+				break ;
+			case -1 :
+				break ;
+			case '1' :
+				menu = 1 ;
+				StateDisplay = State_sawtooth ;
+				break ;
+			case '2' :
+				menu = 2 ;
+				StateDisplay = State_sin ;
+				break ;
+			case '3' :
+				menu = 3 ;
+				StateDisplay = State_Square ;
+				break ;
+			default :
+				StateDisplay = State_mainmenu ;
+				break ;
 			}
+			break ;
+
+		case State_sawtooth :
+			{
+			char temp[]="-----------------------\r\n"
+						"MENU 1 : Sawtooth\r\n"
+						"press a : + frequency \r\n "
+						"press z : - frequency \r\n"
+						"press s : + V high \r\n"
+						"press x : - V high \r\n"
+						"press d : + V low \r\n"
+						"press c : - V low \r\n "
+						"press f : Slope Up/Down\r\n"
+						"press e : exit\r\n"
+						"-----------------------\r\n";
+			HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),100);
+			}
+			StateDisplay = State_mainsawtooth ;
+			break;
+
+		case State_mainsawtooth :
+			switch(inputchar)
+			{
+			case 0 :
+				break ;
+			case -1 :
+				break ;
+			case 'a' : //+f
+				f = f + 0.1 ;
+				if( f > 10)
+				{
+					f = 10 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf,"Frequency = %f Hz\r\n",f);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsawtooth ;
+				break ;
+			case 'z' : //-f
+				f = f - 0.1 ;
+				if(f < 0 )
+				{
+					f = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf,"Frequency = %f Hz\r\n",f);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsawtooth ;
+				break ;
+			case 's' : //+v high
+				V_high = V_high + 0.1 ;
+				if( V_high > 3.3)
+				{
+					V_high = 3.3 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V high = %f V \r\n",V_high);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsawtooth ;
+				break ;
+			case 'x' : //-v high
+				V_high = V_high - 0.1 ;
+				if( V_high < 0)
+				{
+					V_high = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V high = %f V \r\n",V_high);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsawtooth ;
+				break ;
+			case 'd' ://+v low
+				V_low = V_low + 0.1 ;
+				if( V_low > 3.3)
+				{
+					V_low = 3.3 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V low = %f V \r\n",V_low);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsawtooth ;
+
+				break ;
+			case 'c' ://-v low
+				V_low = V_low - 0.1 ;
+				if( V_low < 0)
+				{
+					V_low = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V low = %f V \r\n",V_low);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsawtooth ;
+				break ;
+			case 'f' ://slope U/D
+				if(S_sawtooth == 0 )
+				{
+					S_sawtooth = 1 ;
+					{
+					char temp[]="Sawtooth slope Down\r\n";
+					HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
+					}
+				}
+				else
+				{
+					S_sawtooth = 0 ;
+					{
+					char temp[]="Sawtooth slope Up\r\n";
+					HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
+					}
+				}
+				StateDisplay = State_mainsawtooth ;
+				break ;
+			case 'e' ://exit
+				{
+				char temp[]="back to menu\r\n";
+				HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
+				}
+				StateDisplay = State_start ;
+				break ;
+			default :
+				{
+				char temp[]="Wrong, please press again.\r\n";
+				HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
+				}
+				StateDisplay = State_mainsawtooth ;
+				break ;
+			}
+			break ;
+
+		case State_sin :
+			{
+			char temp[]="-----------------------\r\n"
+						"MENU 2 : Sine wave\r\n"
+						"press a : + frequency \r\n "
+						"press z : - frequency \r\n"
+						"press s : + V high \r\n"
+						"press x : - V high \r\n"
+						"press d : + V low \r\n"
+						"press c : - V low \r\n "
+						"press e : exit\r\n"
+						"-----------------------\r\n";
+			HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),100);
+			}
+			StateDisplay = State_mainsin ;
+			break;
+
+		case State_mainsin :
+			switch(inputchar)
+			{
+			case 0 :
+				break ;
+			case -1 :
+				break ;
+			case 'a' : //+f
+				f = f + 0.1 ;
+				if( f > 10)
+				{
+					f = 10 ;
+				}
+				{
+					char showe[32] = " ";
+					sprintf(showe, "Frequency = %f Hz \r\n",f);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showe, strlen(showe), 10);
+				}
+				StateDisplay = State_mainsin;
+				break ;
+			case 'z' : //-f
+				f = f - 0.1 ;
+				if(f < 0 )
+				{
+					f = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "Frequency = %f Hz \r\n",f);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsin ;
+				break ;
+			case 's' : //+v high
+				V_high = V_high + 0.1 ;
+				if( V_high > 3.3)
+				{
+					V_high = 3.3 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V high = %f V \r\n",V_high);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsin ;
+				break ;
+			case 'x' : //-v high
+				V_high = V_high - 0.1 ;
+				if( V_high < 0)
+				{
+					V_high = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V high = %f V \r\n",V_high);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsin ;
+				break ;
+			case 'd' ://+v low
+				V_low = V_low + 0.1 ;
+				if( V_low > 3.3)
+				{
+					V_low = 3.3 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V low = %f V \r\n",V_low);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsin ;
+
+				break ;
+			case 'c' ://-v low
+				V_low = V_low - 0.1 ;
+				if( V_low < 0)
+				{
+					V_low = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V low = %f V \r\n",V_low);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainsin ;
+				break ;
+			case 'e' ://exit
+				{
+				char temp[]="back to menu\r\n";
+				HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
+				}
+				StateDisplay = State_start ;
+				break ;
+			default :
+				{
+				char temp[]="Wrong, please press again.\r\n";
+				HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
+				}
+				StateDisplay = State_mainsin ;
+				break ;
+			}
+			break ;
+
+		case State_Square :
+			{
+			char temp[]="-----------------------\r\n"
+						"MENU 3 : Square wave\r\n"
+						"press a : + frequency \r\n "
+						"press z : - frequency \r\n"
+						"press s : + V high \r\n"
+						"press x : - V high \r\n"
+						"press d : + V low \r\n"
+						"press c : - V low \r\n "
+						"press f : + Duty cycle \r\n"
+						"press v : - Duty cycle \r\n"
+						"press e : exit\r\n"
+						"-----------------------\r\n";
+			HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),100);
+			}
+			StateDisplay = State_mainSquare ;
+			break;
+
+		case State_mainSquare :
+			switch(inputchar)
+			{
+			case 0 :
+				break ;
+			case -1 :
+				break ;
+			case 'a' : //+f
+				f = f + 0.1 ;
+				if( f > 10)
+				{
+					f = 10 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "Frequency = %f Hz \r\n",f);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainSquare;
+				break ;
+			case 'z' : //-f
+				f = f - 0.1 ;
+				if(f < 0 )
+				{
+					f = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "Frequency = %f Hz \r\n",f);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainSquare ;
+				break ;
+			case 's' : //+v high
+				V_high = V_high + 0.1 ;
+				if( V_high > 3.3)
+				{
+					V_high = 3.3 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V high = %f V \r\n",V_high);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainSquare ;
+				break ;
+			case 'x' : //-v high
+				V_high = V_high - 0.1 ;
+				if( V_high < 0)
+				{
+					V_high = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V high = %f V \r\n",V_high);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainSquare ;
+				break ;
+			case 'd' ://+v low
+				V_low = V_low + 0.1 ;
+				if( V_low > 3.3)
+				{
+					V_low = 3.3 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V low = %f V \r\n",V_low);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainSquare ;
+				break ;
+			case 'c' ://-v low
+				V_low = V_low - 0.1 ;
+				if( V_low < 0)
+				{
+					V_low = 0 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "V low = %f V \r\n",V_low);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainSquare ;
+				break ;
+			case 'f' ://+v Duty
+				Duty = Duty + 10 ;
+				if(Duty > 100)
+				{
+					Duty = 100 ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "Duty Cycle = %d \r\n",Duty);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainSquare ;
+				break ;
+			case 'v' ://-v Duty
+				Duty = Duty - 10 ;
+				if(Duty < 0)
+				{
+					Duty = 0  ;
+				}
+				{
+					char showf[32] = {0};
+					sprintf(showf, "Duty Cycle = %d \r\n",Duty);
+					HAL_UART_Transmit(&huart2, (uint8_t*)showf, strlen(showf), 10);
+				}
+				StateDisplay = State_mainSquare ;
+				break ;
+			case 'e' ://exit
+				{
+				char temp[]="back to menu\r\n";
+				HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
+				}
+				StateDisplay = State_start ;
+				break ;
+			default :
+				{
+				char temp[]="Wrong, please press again.\r\n";
+				HAL_UART_Transmit(&huart2, (uint8_t*)temp, strlen(temp),10);
+				}
+				StateDisplay = State_mainSquare ;
+				break ;
+			}
+			break ;
+
+		} //Switch State
+
+	//}//if inputchar
+
+	if (micros() - timestamp > 100) //100uz = 10khz
+	{
+		timestamp = micros();
+		if(menu == 1) //sawtooth
+		{
+			T = 1/f ;
+			edit_time = 1000000*T ;
+			if(micros() - time_wave > edit_time)
+			{
+				time_wave = micros() ;
+			}
+			if(micros() - time_wave <= edit_time)
+			{
+
+				if(S_sawtooth == 0) //up
+				{
+					sumtimewave = micros() - time_wave ;
+					sumdata = V_low + (V_high - V_low)*(sumtimewave/edit_time);
+					dataOut = sumdata*4096/3.3 ;
+				}
+				if(S_sawtooth == 1) //D
+				{
+					sumtimewave = micros() - time_wave ;
+					sumdata = V_high - (V_high - V_low)*(sumtimewave/edit_time);
+					dataOut = sumdata*4096/3.3 ;
+
+				}
+			}
+		}
+		if(menu == 2)//sin
+		{
+			T = 1/f ;
+			edit_time = 1000000*T ;
+			if(micros() - time_wave > edit_time)
+			{
+				time_wave = micros() ;
+			}
+			if(micros() - time_wave <= edit_time)
+			{
+				Amplitude = (V_high - V_low )/2 ;
+				sumtimewave = micros()- time_wave ;
+				sumdata = V_low + ((sin((sumtimewave/edit_time)*2*3.141592653569793236)+1)*Amplitude);
+				dataOut = sumdata*4096/3.3 ;
+			}
+		}
+		if(menu == 3)//square
+		{
+//			if (micros() - time > ((1.0 / f * 1000000) / 4095)) {
+//
+//
+//			time= micros();
+//			out ++ ;
+//			out  %=4096 ;
+//			if(((float)out/4095)*100<=Duty){
+//				dataOut=4095;
+//			}
+//			else{
+//				dataOut=0;
+//			}
+//			dataOut=((V_high-V_low)*((float)dataOut/4095))+V_low;
+//			dataOut=dataOut/3.3;
+//			dataOut=dataOut*4096;
+//				}
+			T = 1/f ;
+			edit_time = 1000000*T;
+//			d = Duty ;
+			T1 = Duty*edit_time*0.01 ;
+			T2 = edit_time - T1 ;
+			if((count == 0)&&(micros() - time_wave >= T1))
+			{
+				sumdata = V_low ;
+				time_wave = micros() ;
+				count = 1 ;
+
+ 			}
+			if((count == 1)&&(micros() - time_wave >= T2))
+			{
+				sumdata = V_high ;
+				time_wave = micros() ;
+				count = 0 ;
+			}
+			dataOut = sumdata*4096/3.3 ;
+
+//			T = 1/f ;
+//			edit_time = 1000000*T ;
+//
+//			if(micros() - time_wave <= (1000000*T))
+//			{
+//
+//				if(micros() - time_wave <= (1000000*T)*(Duty/100))
+//				{
+//
+//					sumdata = V_high  ;
+//
+//				}
+//				if(micros() - time_wave >( 1000000*T)*(Duty/100))
+//				{
+//					sumdata = V_low;
+//
+//				}
+//				dataOut = sumdata*4096/3.3 ;
+//			}
+//			if(micros() - time_wave >( 1000000*T))
+//			{
+//				time_wave = micros() ;
+//			}
+
+			}
+		if (hspi3.State == HAL_SPI_STATE_READY
+				&& HAL_GPIO_ReadPin(SPI_SS_GPIO_Port, SPI_SS_Pin)
+						== GPIO_PIN_SET)
+		{
+			MCP4922SetOutput(DACConfig, dataOut);
+		}
+	}
+
+
 		}
     /* USER CODE END WHILE */
 
@@ -496,6 +1096,18 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+int16_t UARTRecieveIT()
+{
+	static uint32_t dataPos =0;
+	int16_t data=-1;
+	if(huart2.RxXferSize - huart2.RxXferCount!=dataPos)
+	{
+		data=RxDataBuffer[dataPos];
+		dataPos= (dataPos+1)%huart2.RxXferSize;
+	}
+	return data;
+}
+
 void MCP4922SetOutput(uint8_t Config, uint16_t DACOutput)
 {
 	uint32_t OutputPacket = (DACOutput & 0x0fff) | ((Config & 0xf) << 12);
